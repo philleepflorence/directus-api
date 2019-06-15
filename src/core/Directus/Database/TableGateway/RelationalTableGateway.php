@@ -698,6 +698,15 @@ class RelationalTableGateway extends BaseTableGateway
         // TODO: Split this, into default and process params
         $defaultParams = $this->defaultEntriesSelectParams;
         $defaultLimit = $this->getSettings('default_limit');
+        
+        // If page and limit are sent but no offset, calculate for offset
+        // Ignore even if offset is set to 0
+        // NOTE: For pagination, offset takes precedence!
+        $page = ArrayUtils::get($params, 'page');
+        $limit = ArrayUtils::get($params, 'limit');
+        if (!ArrayUtils::has($params, 'offset') && $page && $limit) {
+	        $params['offset'] = ($page - 1) * $limit;
+        }
 
         // Set default rows limit from db settings
         if ($defaultLimit) {
@@ -1001,6 +1010,7 @@ class RelationalTableGateway extends BaseTableGateway
         
         if (!$rows || !$total) return $metadata;
 	    
+	    // Get the total rows that match filter query
 	    if ($filtered) {
 		    $filteredparams = array_merge($params, [
 		       "depth" => 0,
@@ -1012,13 +1022,15 @@ class RelationalTableGateway extends BaseTableGateway
 	        $total = count($entries);	        
 	        $metadata['filter_count'] = $total;
 	    }
-		        
+		
+		// Calculate pagination and set links        
         $limit = $limit < 1 ? $rows : $limit;
         $pages = $total ? ceil($total / $limit) : 1;
         $page = $page > $pages ? $pages : ( $page && $offset >= 0 ? ( floor($offset / $limit) + 1 ) : $page );
         $offset = $offset >= 0 ? $offset : ($page ? (($page - 1) * $limit) : 0);
         $next = $previous = $last = $first = -1;
         
+        // Pagination is only needed if there are 2 or more pages
         if ($pages > 1) {
 	        $next = ($pages > $page) ? ($offset + $limit) : null;
 	        $previous = ($offset >= $limit) ? ($offset - $limit) : ($limit * ( $pages - 1 ));
